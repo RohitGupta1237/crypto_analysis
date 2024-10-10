@@ -1,4 +1,4 @@
-Crypto porject
+Crypto project
 ### MacOS
 - Install the package manager [Homebrew](https://brew.sh/)
 - Then run:
