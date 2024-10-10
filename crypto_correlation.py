@@ -5,7 +5,11 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import numpy as np
 import pandas as pd
+from sklearn.model_selection import train_test_split
+from sklearn.linear_model import LinearRegression
+import plotly.graph_objects as go
 
+# Define constants
 currency = "USD"
 metric = "Close"
 start = dt.datetime(2013, 4, 29)
@@ -14,9 +18,8 @@ end = dt.datetime.now()
 crypto = ['BTC', 'ETH', 'ADA', 'SOL', 'LTC', 'TRX', 'XRP', 'MATIC', 'XMR', 'SIN']
 colnames = []
 
-first = True
-
 # Fetch data for all cryptocurrencies
+first = True
 for ticker in crypto:
     data = web.DataReader(f"{ticker}-{currency}", "yahoo", start, end)
     if first:
@@ -75,6 +78,74 @@ plt.ylabel('Volatility')
 plt.legend(loc="upper right")
 plt.show()
 
+# Volume Analysis
+for ticker in crypto:
+    data = web.DataReader(f"{ticker}-{currency}", "yahoo", start, end)
+    combined[f"{ticker}_Volume_Avg"] = data['Volume'].rolling(window=30).mean()
+
+# Plot Volume with Average Volume
+plt.figure(figsize=(12, 8))
+for ticker in crypto:
+    plt.plot(data['Volume'], label=f"{ticker} Volume", alpha=0.3)
+    plt.plot(combined[f"{ticker}_Volume_Avg"], label=f"{ticker} Avg Volume", linestyle='--')
+
+plt.title('Cryptocurrency Volume Analysis')
+plt.xlabel('Date')
+plt.ylabel('Volume')
+plt.legend(loc="upper right")
+plt.show()
+
+# Sharpe Ratio Calculation
+def calculate_sharpe_ratio(returns, risk_free_rate=0.01):
+    excess_returns = returns - risk_free_rate / 252  # Daily risk-free rate
+    return np.sqrt(252) * excess_returns.mean() / excess_returns.std()
+
+sharpe_ratios = {}
+for ticker in crypto:
+    returns = combined[ticker].pct_change().dropna()
+    sharpe_ratios[ticker] = calculate_sharpe_ratio(returns)
+
+print("Sharpe Ratios:")
+print(sharpe_ratios)
+
+# Maximum Drawdown Calculation
+def calculate_max_drawdown(prices):
+    drawdowns = (prices / prices.cummax()) - 1
+    return drawdowns.min()
+
+max_drawdowns = {}
+for ticker in crypto:
+    max_drawdowns[ticker] = calculate_max_drawdown(combined[ticker])
+
+print("Maximum Drawdowns:")
+print(max_drawdowns)
+
+# Seasonality Analysis
+combined['Month'] = combined.index.month
+combined['Weekday'] = combined.index.weekday
+
+# Average Monthly Returns
+monthly_returns = combined.groupby('Month').mean().pct_change()
+
+# Plot Monthly Returns
+plt.figure(figsize=(12, 6))
+monthly_returns.plot(kind='bar', color='skyblue')
+plt.title('Average Monthly Returns')
+plt.xlabel('Month')
+plt.ylabel('Average Return')
+plt.show()
+
+# Average Weekly Returns
+weekly_returns = combined.groupby('Weekday').mean().pct_change()
+
+# Plot Weekly Returns
+plt.figure(figsize=(12, 6))
+weekly_returns.plot(kind='bar', color='salmon')
+plt.title('Average Weekly Returns')
+plt.xlabel('Weekday (0=Monday)')
+plt.ylabel('Average Return')
+plt.show()
+
 # Correlation Heatmap with Additional Correlation Methods
 combined_pct_change = combined.pct_change()  # Calculate daily returns
 correlation_matrix_pearson = combined_pct_change.corr(method='pearson')
@@ -111,4 +182,42 @@ mask = np.triu(np.ones_like(correlation_matrix_pearson, dtype=bool))
 plt.figure(figsize=(10, 8))
 sns.heatmap(correlation_matrix_pearson, annot=True, cmap="coolwarm", mask=mask)
 plt.title('Pearson Correlation (Masked Upper Triangle)')
+plt.show()
+
+# Advanced Visualization with Plotly
+# Plotting interactive candlestick chart for BTC
+btc_data = web.DataReader("BTC-USD", "yahoo", start, end)
+
+fig = go.Figure(data=[go.Candlestick(x=btc_data.index,
+                                       open=btc_data['Open'],
+                                       high=btc_data['High'],
+                                       low=btc_data['Low'],
+                                       close=btc_data['Close'])])
+
+fig.update_layout(title='BTC-USD Candlestick Chart', xaxis_title='Date', yaxis_title='Price (USD)')
+fig.show()
+
+# Simple Machine Learning Model for Price Prediction
+# Prepare data
+X = np.arange(len(combined)).reshape(-1, 1)  # Use index as feature
+y = combined['BTC'].values  # Target variable (BTC prices)
+
+# Split data
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=0)
+
+# Train model
+model = LinearRegression()
+model.fit(X_train, y_train)
+
+# Predict
+predictions = model.predict(X_test)
+
+# Plot predictions
+plt.figure(figsize=(12, 8))
+plt.plot(combined['BTC'], label='Actual BTC Prices')
+plt.plot(range(len(X_train), len(X_train) + len(predictions)), predictions, label='Predicted BTC Prices', linestyle='--')
+plt.title('BTC Price Prediction')
+plt.xlabel('Date')
+plt.ylabel('Price (USD)')
+plt.legend()
 plt.show()
